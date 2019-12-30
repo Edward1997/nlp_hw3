@@ -1,0 +1,8 @@
+record/
+__pycache__/
+.idea
+.DS_Store
+.ipynb_checkpoints/
+*.bin
+data/
+*.h5
