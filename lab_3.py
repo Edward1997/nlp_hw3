@@ -227,13 +227,30 @@ decoder_outputs = decoder_dense(decoder_outputs)
 # `encoder_input_data` & `decoder_input_data` into `decoder_target_data`
 model = Model([encoder_inputs, decoder_inputs], decoder_outputs)
 
+def data_generator(batch_size, encoder_input_data, decoder_input_data, decoder_target_data):
+    total_size = len(encoder_input_data)
+    batch_num = total_size // batch_size
+    while 1:
+        batch_id = 0
+        while batch_id < batch_num:
+            yield [encoder_input_data[batch_id * batch_size:(batch_id + 1) * batch_size - 1],
+                   decoder_input_data[batch_id * batch_size:(batch_id + 1) * batch_size - 1]], decoder_target_data[batch_id * batch_size:(batch_id + 1) * batch_size - 1]
+            batch_id += 1
+
+        yield [encoder_input_data[batch_id * batch_size:],
+               decoder_input_data[batch_id * batch_size:]], decoder_target_data[batch_id * batch_size:]
+
+    return
+
 # Run training
 adam = optimizers.Adam(lr=0.001, epsilon=1e-08)
 model.compile(optimizer='rmsprop', loss='sparse_categorical_crossentropy')
 model.summary()
-model.fit([encoder_input_data, decoder_input_data], decoder_target_data,
-          batch_size=batch_size,
-          epochs=epochs,
-          validation_data=([val_encoder_input_data, val_decoder_input_data], val_decoder_target_data))
+model.fit_generator(data_generator(batch_size, encoder_input_data, decoder_input_data, decoder_target_data),
+                    steps_per_epoch=len(encoder_input_data)//batch_size + 1,
+                    epochs=epochs,
+                    validation_data=data_generator(batch_size, val_encoder_input_data, val_decoder_input_data,
+                                                   val_decoder_target_data),
+                    validation_steps=len(val_encoder_input_data)//batch_size + 1)
 # Save model
 model.save('s2s.h5')
