@@ -8,20 +8,15 @@ import numpy as np
 import gensim
 from gensim.models import Word2Vec
 from gensim.models import KeyedVectors
-import nltk
-from nltk.tokenize import word_tokenize
-nltk.download('punkt')
-
 
 batch_size = 32  # Batch size for training.
 epochs = 50  # Number of epochs to train for.
 latent_dim = 256  # Latent dimensionality of the encoding space.
-num_samples = 1000000  # Number of samples to train on.
+num_samples = 10000  # Number of samples to train on.
 embedding_dim = 300
-counts = [0, 0, 0, 0, 0, 0]
 # Path to the data txt file on disk.
-data_path = 'data/clean_train.txt'
-val_data_path = 'data/clean_validation.txt'
+data_path = 'data/train.txt'
+val_data_path = 'data/validation.txt'
 
 # Vectorize the data.
 input_texts = []
@@ -34,72 +29,58 @@ with open(data_path, 'r', encoding='utf-8') as f:
     lines = f.read().split('\n')
 with open(val_data_path, 'r', encoding='utf-8') as f:
     val_lines = f.read().split('\n')
-
-counts = [0, 0, 0, 0, 0, 0]
 for line in lines[: min(num_samples, len(lines) - 1)]:
     input_text, target_text = line.split('\t')
     # We use "tab" as the "start sequence" character
     # for the targets, and "\n" as "end sequence" character.
     # word base
-    target_text = word_tokenize(target_text)
+    target_text = target_text.split()
+    target_text = [''.join(list(filter(str.isalpha, word))) for word in target_text]
+    target_text = list(filter(None, target_text))
     target_text.insert(0,'\t')
     target_text.append('\n')
-    input_text = word_tokenize(input_text)
+    input_text = input_text.split()
+    input_text = [''.join(list(filter(str.isalpha, word))) for word in input_text]
+    input_text = list(filter(None, input_text))
+    # char base
+    # target_text = ''.join(list(filter(str.isalpha, target_text)))
+    # target_text = '\t' + target_text + '\n'
+    # input_text = ''.join(list(filter(str.isalpha, input_text)))
 
-    if len(input_text) < 200:
-        input_texts.append(input_text)
-        target_texts.append(target_text)
-        for char in input_text:
-            if char not in input_characters:
-                input_characters.add(char)
-        for char in target_text:
-            if char not in target_characters:
-                target_characters.add(char)
-texts = []
-for t in input_texts:
-    texts += t
-freq = nltk.FreqDist(texts)
-print(len(input_characters))
-for key, val in freq.items():
-    if val == 1:
-        input_characters.remove(key)
-print(len(input_characters))
-# counts = [0, 0, 0, 0, 0, 0]
+    input_texts.append(input_text)
+    target_texts.append(target_text)
+    for char in input_text:
+        if char not in input_characters:
+            input_characters.add(char)
+    for char in target_text:
+        if char not in target_characters:
+            target_characters.add(char)
 for line in val_lines[: min(num_samples, len(val_lines) - 1)]:
     val_input_text, val_target_text = line.split('\t')
     # We use "tab" as the "start sequence" character
     # for the targets, and "\n" as "end sequence" character.
     # word_base
-    val_target_text = word_tokenize(val_target_text)
+    val_target_text = val_target_text.split()
+    val_target_text = [''.join(list(filter(str.isalpha, word))) for word in val_target_text]
+    val_target_text = list(filter(None, val_target_text))
     val_target_text.insert(0,'\t')
     val_target_text.append('\n')
-    val_input_text = word_tokenize(val_input_text)
+    val_input_text = val_input_text.split()
+    val_input_text = [''.join(list(filter(str.isalpha, word))) for word in val_input_text]
+    val_input_text = list(filter(None, val_input_text))
+    # char base
+    # val_target_text = ''.join(list(filter(str.isalpha, val_target_text)))
+    # val_target_text = '\t' + val_target_text + '\n'
+    # val_input_text = ''.join(list(filter(str.isalpha, val_input_text)))
 
     val_input_texts.append(val_input_text)
     val_target_texts.append(val_target_text)
-    # for char in val_input_text:
-    #     if char not in input_characters:
-    #         input_characters.add(char)
-    # for char in val_target_text:
-    #     if char not in target_characters:
-    #         target_characters.add(char)
-
-#     sent_len = len(val_input_text)
-#     if sent_len > 250:
-#         counts[0] += 1
-#     elif sent_len > 200:
-#         counts[1] += 1
-#     elif sent_len > 150:
-#         counts[2] += 1
-#     elif sent_len > 100:
-#         counts[3] += 1
-#     elif sent_len > 50:
-#         counts[4] += 1
-#     else:
-#         counts[5] += 1
-#
-# for i, num in enumerate(counts):
-#     print('{}~{} : {}'.format((5-i)*50, (6-i)*50, num))
+    for char in val_input_text:
+        if char not in input_characters:
+            input_characters.add(char)
+    for char in val_target_text:
+        if char not in target_characters:
+            target_characters.add(char)
 
 input_characters = sorted(list(input_characters))
 target_characters = sorted(list(target_characters))
@@ -113,6 +94,7 @@ print('Number of unique input tokens:', num_encoder_tokens)
 print('Number of unique output tokens:', num_decoder_tokens)
 print('Max sequence length for inputs:', max_encoder_seq_length)
 print('Max sequence length for outputs:', max_decoder_seq_length)
+
 
 input_token_index = dict(
     [(char, i) for i, char in enumerate(input_characters)])
@@ -203,13 +185,36 @@ decoder_outputs = decoder_dense(decoder_outputs)
 # `encoder_input_data` & `decoder_input_data` into `decoder_target_data`
 model = Model([encoder_inputs, decoder_inputs], decoder_outputs)
 
+
+def data_generator(batch_size, encoder_input_data, decoder_input_data, decoder_target_data):
+    total_size = len(encoder_input_data)
+    batch_num = total_size // batch_size
+    while 1:
+        batch_id = 0
+        while batch_id < batch_num:
+            yield [encoder_input_data[batch_id * batch_size:(batch_id + 1) * batch_size - 1],
+                   decoder_input_data[batch_id * batch_size:(batch_id + 1) * batch_size - 1]], decoder_target_data[batch_id * batch_size:(batch_id + 1) * batch_size - 1]
+            batch_id += 1
+            
+        yield [encoder_input_data[batch_id * batch_size:],
+               decoder_input_data[batch_id * batch_size:]], decoder_target_data[batch_id * batch_size:]
+
+    return
+
+
 # Run training
-adam = optimizers.Adam(lr=0.001, epsilon=1e-08)
+adam = optimizers.Adam(lr=0.0001, epsilon=1e-08)
 model.compile(optimizer='rmsprop', loss='sparse_categorical_crossentropy')
 model.summary()
-model.fit([encoder_input_data, decoder_input_data], decoder_target_data,
-          batch_size=batch_size,
-          epochs=epochs,
-          validation_data=([val_encoder_input_data, val_decoder_input_data], val_decoder_target_data))
+model.fit_generator(data_generator(batch_size, encoder_input_data, decoder_input_data, decoder_target_data),
+                    steps_per_epoch=len(encoder_input_data)//batch_size + 1,
+                    epochs=epochs,
+                    validation_data=data_generator(batch_size, val_encoder_input_data, val_decoder_input_data,
+                                                   val_decoder_target_data),
+                    validation_steps=len(val_encoder_input_data)//batch_size + 1)
+
 # Save model
 model.save('s2s.h5')
+
+
+
