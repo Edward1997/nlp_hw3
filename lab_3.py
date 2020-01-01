@@ -13,7 +13,7 @@ from nltk.tokenize import word_tokenize
 nltk.download('punkt')
 
 
-batch_size = 64  # Batch size for training.
+batch_size = 32  # Batch size for training.
 epochs = 50  # Number of epochs to train for.
 latent_dim = 256  # Latent dimensionality of the encoding space.
 num_samples = 1000000  # Number of samples to train on.
@@ -45,7 +45,7 @@ for line in lines[: min(num_samples, len(lines) - 1)]:
     target_text.append('\n')
     input_text = word_tokenize(input_text)
 
-    if len(input_text) < 200:
+    if len(input_text) < 150:
         input_texts.append(input_text)
         target_texts.append(target_text)
         for char in input_text:
