@@ -13,7 +13,7 @@ from nltk.tokenize import word_tokenize
 nltk.download('punkt')
 
 
-batch_size = 32  # Batch size for training.
+batch_size = 64  # Batch size for training.
 epochs = 50  # Number of epochs to train for.
 latent_dim = 256  # Latent dimensionality of the encoding space.
 num_samples = 1000000  # Number of samples to train on.
@@ -35,7 +35,6 @@ with open(data_path, 'r', encoding='utf-8') as f:
 with open(val_data_path, 'r', encoding='utf-8') as f:
     val_lines = f.read().split('\n')
 
-counts = [0, 0, 0, 0, 0, 0]
 for line in lines[: min(num_samples, len(lines) - 1)]:
     input_text, target_text = line.split('\t')
     # We use "tab" as the "start sequence" character
@@ -59,11 +58,20 @@ texts = []
 for t in input_texts:
     texts += t
 freq = nltk.FreqDist(texts)
-print(len(input_characters))
 for key, val in freq.items():
     if val == 1:
         input_characters.remove(key)
-print(len(input_characters))
+input_characters.add('unk')
+
+texts = []
+for t in target_texts:
+    texts += t
+freq = nltk.FreqDist(texts)
+for key, val in freq.items():
+    if val == 1:
+        target_characters.remove(key)
+target_characters.add('unk')
+
 # counts = [0, 0, 0, 0, 0, 0]
 for line in val_lines[: min(num_samples, len(val_lines) - 1)]:
     val_input_text, val_target_text = line.split('\t')
@@ -105,8 +113,8 @@ input_characters = sorted(list(input_characters))
 target_characters = sorted(list(target_characters))
 num_encoder_tokens = len(input_characters)
 num_decoder_tokens = len(target_characters)
-max_encoder_seq_length = max(max([len(txt) for txt in input_texts]), max([len(txt) for txt in val_input_texts]))
-max_decoder_seq_length = max(max([len(txt) for txt in target_texts]), max([len(txt) for txt in val_target_texts]))
+max_encoder_seq_length = max([len(txt) for txt in input_texts])
+max_decoder_seq_length = max([len(txt) for txt in target_texts])
 
 print('Number of samples:', len(input_texts))
 print('Number of unique input tokens:', num_encoder_tokens)
@@ -129,11 +137,17 @@ val_decoder_target_data = np.zeros((len(val_input_texts), max_decoder_seq_length
 
 for i, (input_text, target_text) in enumerate(zip(input_texts, target_texts)):
     for t, char in enumerate(input_text):
-        encoder_input_data[i, t] = input_token_index[char]
+        if char in input_token_index:
+            encoder_input_data[i, t] = input_token_index[char]
+        else:
+            encoder_input_data[i, t] = input_token_index['unk']
 
     for t, char in enumerate(target_text):
         # decoder_target_data is ahead of decoder_input_data by one timestep
-        index = target_token_index[char]
+        if char in target_token_index:
+            index = target_token_index[char]
+        else:
+            index = target_token_index['unk']
         decoder_input_data[i, t] = index
         if t > 0:
             # decoder_target_data will be ahead by one timestep
@@ -142,11 +156,21 @@ for i, (input_text, target_text) in enumerate(zip(input_texts, target_texts)):
 
 for i, (val_input_text, val_target_text) in enumerate(zip(val_input_texts, val_target_texts)):
     for t, char in enumerate(val_input_text):
-        val_encoder_input_data[i, t] = input_token_index[char]
+        if t >= max_encoder_seq_length:
+            break
+        if char in input_token_index:
+            val_encoder_input_data[i, t] = input_token_index[char]
+        else:
+            val_encoder_input_data[i, t] = input_token_index['unk']
 
     for t, char in enumerate(val_target_text):
         # decoder_target_data is ahead of decoder_input_data by one timestep
-        index = target_token_index[char]
+        if t >= max_decoder_seq_length:
+            break
+        if char in target_token_index:
+            index = target_token_index[char]
+        else:
+            index = target_token_index['unk']
         val_decoder_input_data[i, t] = index
         if t > 0:
             # decoder_target_data will be ahead by one timestep
