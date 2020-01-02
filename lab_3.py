@@ -13,12 +13,11 @@ from nltk.tokenize import word_tokenize
 nltk.download('punkt')
 
 
-batch_size = 64  # Batch size for training.
-epochs = 50  # Number of epochs to train for.
+batch_size = 8  # Batch size for training.
+epochs = 1  # Number of epochs to train for.
 latent_dim = 256  # Latent dimensionality of the encoding space.
-num_samples = 1000000  # Number of samples to train on.
+num_samples = 1000  # Number of samples to train on.
 embedding_dim = 300
-counts = [0, 0, 0, 0, 0, 0]
 # Path to the data txt file on disk.
 data_path = 'data/clean_train.txt'
 val_data_path = 'data/clean_validation.txt'
@@ -29,7 +28,10 @@ target_texts = []
 val_input_texts = []
 val_target_texts = []
 input_characters = set()
+input_characters.add('<pad>')
+input_characters.add('<unk>')
 target_characters = set()
+target_characters.add('<unk>')
 with open(data_path, 'r', encoding='utf-8') as f:
     lines = f.read().split('\n')
 with open(val_data_path, 'r', encoding='utf-8') as f:
@@ -41,19 +43,19 @@ for line in lines[: min(num_samples, len(lines) - 1)]:
     # for the targets, and "\n" as "end sequence" character.
     # word base
     target_text = word_tokenize(target_text)
-    target_text.insert(0,'\t')
-    target_text.append('\n')
+    target_text.insert(0, '<start>')
+    target_text.append('<end>')
     input_text = word_tokenize(input_text)
 
-    if len(input_text) < 200:
-        input_texts.append(input_text)
-        target_texts.append(target_text)
-        for char in input_text:
-            if char not in input_characters:
-                input_characters.add(char)
-        for char in target_text:
-            if char not in target_characters:
-                target_characters.add(char)
+    input_texts.append(input_text)
+    target_texts.append(target_text)
+    for char in input_text:
+        if char not in input_characters:
+            input_characters.add(char)
+    for char in target_text:
+        if char not in target_characters:
+            target_characters.add(char)
+
 texts = []
 for t in input_texts:
     texts += t
@@ -61,7 +63,6 @@ freq = nltk.FreqDist(texts)
 for key, val in freq.items():
     if val == 1:
         input_characters.remove(key)
-input_characters.add('unk')
 
 texts = []
 for t in target_texts:
@@ -70,7 +71,6 @@ freq = nltk.FreqDist(texts)
 for key, val in freq.items():
     if val == 1:
         target_characters.remove(key)
-target_characters.add('unk')
 
 # counts = [0, 0, 0, 0, 0, 0]
 for line in val_lines[: min(num_samples, len(val_lines) - 1)]:
@@ -79,8 +79,8 @@ for line in val_lines[: min(num_samples, len(val_lines) - 1)]:
     # for the targets, and "\n" as "end sequence" character.
     # word_base
     val_target_text = word_tokenize(val_target_text)
-    val_target_text.insert(0,'\t')
-    val_target_text.append('\n')
+    val_target_text.insert(0, '<start>')
+    val_target_text.append('<end>')
     val_input_text = word_tokenize(val_input_text)
 
     val_input_texts.append(val_input_text)
@@ -109,8 +109,8 @@ for line in val_lines[: min(num_samples, len(val_lines) - 1)]:
 # for i, num in enumerate(counts):
 #     print('{}~{} : {}'.format((5-i)*50, (6-i)*50, num))
 
-input_characters = sorted(list(input_characters))
-target_characters = sorted(list(target_characters))
+input_characters = list(input_characters)
+target_characters = list(target_characters)
 num_encoder_tokens = len(input_characters)
 num_decoder_tokens = len(target_characters)
 max_encoder_seq_length = max([len(txt) for txt in input_texts])
@@ -140,14 +140,14 @@ for i, (input_text, target_text) in enumerate(zip(input_texts, target_texts)):
         if char in input_token_index:
             encoder_input_data[i, t] = input_token_index[char]
         else:
-            encoder_input_data[i, t] = input_token_index['unk']
+            encoder_input_data[i, t] = input_token_index['<unk>']
 
     for t, char in enumerate(target_text):
         # decoder_target_data is ahead of decoder_input_data by one timestep
         if char in target_token_index:
             index = target_token_index[char]
         else:
-            index = target_token_index['unk']
+            index = target_token_index['<unk>']
         decoder_input_data[i, t] = index
         if t > 0:
             # decoder_target_data will be ahead by one timestep
@@ -161,7 +161,7 @@ for i, (val_input_text, val_target_text) in enumerate(zip(val_input_texts, val_t
         if char in input_token_index:
             val_encoder_input_data[i, t] = input_token_index[char]
         else:
-            val_encoder_input_data[i, t] = input_token_index['unk']
+            val_encoder_input_data[i, t] = input_token_index['<unk>']
 
     for t, char in enumerate(val_target_text):
         # decoder_target_data is ahead of decoder_input_data by one timestep
@@ -170,7 +170,7 @@ for i, (val_input_text, val_target_text) in enumerate(zip(val_input_texts, val_t
         if char in target_token_index:
             index = target_token_index[char]
         else:
-            index = target_token_index['unk']
+            index = target_token_index['<unk>']
         val_decoder_input_data[i, t] = index
         if t > 0:
             # decoder_target_data will be ahead by one timestep
@@ -200,7 +200,8 @@ encoder_inputs = Input(shape=(max_encoder_seq_length,))
 embedding_layer = Embedding(len(input_characters) + 1, embedding_dim,
                             weights=[embedding_matrix],
                             input_length=max_encoder_seq_length,
-                            trainable=False)
+                            trainable=True,
+                            mask_zero=True)
 embedding_encoder_inputs = embedding_layer(encoder_inputs)
 encoder = LSTM(latent_dim, return_state=True)
 encoder_outputs, state_h, state_c = encoder(embedding_encoder_inputs)
@@ -212,7 +213,7 @@ decoder_inputs = Input(shape=(max_decoder_seq_length,))
 de_embedding_layer = Embedding(len(target_characters) + 1, embedding_dim,
                             weights=[de_embedding_matrix],
                             input_length=max_decoder_seq_length,
-                            trainable=False)
+                            trainable=True)
 embedding_decoder_inputs = de_embedding_layer(decoder_inputs)
 # We set up our decoder to return full output sequences,
 # and to return internal states as well. We don't use the
@@ -243,14 +244,80 @@ def data_generator(batch_size, encoder_input_data, decoder_input_data, decoder_t
     return
 
 # Run training
-adam = optimizers.Adam(lr=0.001, epsilon=1e-08)
+# adam = optimizers.Adam(lr=0.001, epsilon=1e-08)
 model.compile(optimizer='rmsprop', loss='sparse_categorical_crossentropy')
 model.summary()
-model.fit_generator(data_generator(batch_size, encoder_input_data, decoder_input_data, decoder_target_data),
-                    steps_per_epoch=len(encoder_input_data)//batch_size + 1,
-                    epochs=epochs,
-                    validation_data=data_generator(batch_size, val_encoder_input_data, val_decoder_input_data,
-                                                   val_decoder_target_data),
-                    validation_steps=len(val_encoder_input_data)//batch_size + 1)
+model.fit([encoder_input_data, decoder_input_data], decoder_target_data,
+          batch_size=batch_size,
+          epochs=epochs,
+          validation_data=([val_encoder_input_data, val_decoder_input_data], val_decoder_target_data))
 # Save model
 model.save('s2s.h5')
+
+
+# Define sampling models
+encoder_model = Model(encoder_inputs, encoder_states)
+
+decoder_state_input_h = Input(shape=(latent_dim,))
+decoder_state_input_c = Input(shape=(latent_dim,))
+decoder_states_inputs = [decoder_state_input_h, decoder_state_input_c]
+decoder_outputs, state_h, state_c = decoder_lstm(
+    embedding_decoder_inputs, initial_state=decoder_states_inputs)
+decoder_states = [state_h, state_c]
+decoder_outputs = decoder_dense(decoder_outputs)
+decoder_model = Model(
+    [decoder_inputs] + decoder_states_inputs,
+    [decoder_outputs] + decoder_states)
+
+# Reverse-lookup token index to decode sequences back to
+# something readable.
+
+
+def decode_sequence(input_seq):
+    # Encode the input as state vectors.
+    states_value = encoder_model.predict(input_seq)
+
+    # Generate empty target sequence of length 1.
+    target_seq = np.zeros((1, max_decoder_seq_length))
+    # print(states_value.shape)
+    # Populate the first character of target sequence with the start character.
+    sent_index = 0
+    target_seq[0, sent_index] = target_token_index['<start>']
+    # Sampling loop for a batch of sequences
+    # (to simplify, here we assume a batch of size 1).
+    stop_condition = False
+    decoded_sentence = []
+    while not stop_condition:
+        output_tokens, h, c = decoder_model.predict(
+            [target_seq] + states_value)
+
+        # Sample a token
+        sampled_token_index = np.argmax(output_tokens[0, -1, :])
+        sampled_char = target_characters[sampled_token_index]
+        decoded_sentence.append(sampled_char)
+
+        # Exit condition: either hit max length
+        # or find stop character.
+        if (sampled_char == '<end>' or
+           len(decoded_sentence) >= max_decoder_seq_length):
+            stop_condition = True
+        else:
+            # Update the target sequence (of length 1).
+            sent_index += 1
+            target_seq[0, sent_index] = sampled_token_index
+
+            # Update states
+            states_value = [h, c]
+
+    return decoded_sentence
+
+
+for seq_index in range(100):
+    # Take one sequence (part of the training set)
+    # for trying out decoding.
+    input_seq = encoder_input_data[seq_index: seq_index + 1]
+    decoded_sentence = decode_sequence(input_seq)
+    print('-')
+    print('Input sentence:', input_texts[seq_index])
+    print('Decoded sentence:', decoded_sentence)
+
