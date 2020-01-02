@@ -13,10 +13,10 @@ from nltk.tokenize import word_tokenize
 nltk.download('punkt')
 
 
-batch_size = 8  # Batch size for training.
-epochs = 10  # Number of epochs to train for.
+batch_size = 64  # Batch size for training.
+epochs = 50  # Number of epochs to train for.
 latent_dim = 256  # Latent dimensionality of the encoding space.
-num_samples = 1000  # Number of samples to train on.
+num_samples = 1000000  # Number of samples to train on.
 embedding_dim = 300
 # Path to the data txt file on disk.
 data_path = 'data/clean_train.txt'
