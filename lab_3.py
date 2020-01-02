@@ -14,7 +14,7 @@ nltk.download('punkt')
 
 
 batch_size = 8  # Batch size for training.
-epochs = 5  # Number of epochs to train for.
+epochs = 1  # Number of epochs to train for.
 latent_dim = 256  # Latent dimensionality of the encoding space.
 num_samples = 1000  # Number of samples to train on.
 embedding_dim = 300
