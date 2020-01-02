@@ -6,3 +6,6 @@ __pycache__/
 *.bin
 data/
 *.h5
+jupyter/data/
+jupyter/*.h5
+jupyter/result.txt
