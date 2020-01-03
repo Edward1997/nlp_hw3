@@ -14,9 +14,9 @@ from nltk.tokenize import word_tokenize
 nltk.download('punkt')
 
 batch_size = 128  # Batch size for training.
-epochs = 3  # Number of epochs to train for.
+epochs = 50  # Number of epochs to train for.
 latent_dim = 256  # Latent dimensionality of the encoding spac
-num_samples = 1000  # Number of samples to train on.
+num_samples = 10000  # Number of samples to train on.
 embedding_dim = 300
 # Path to the data txt file on disk.
 data_path = 'data/clean_train.txt'
@@ -38,7 +38,8 @@ with open(val_data_path, 'r', encoding='utf-8') as f:
     val_lines = f.read().split('\n')
 
 # train data
-for line in lines[: min(num_samples, len(lines) - 1)]:
+t = 0
+for line in lines:
     input_text, target_text = line.split('\t')
     # We use "tab" as the "start sequence" character
     # for the targets, and "\n" as "end sequence" character.
@@ -48,14 +49,18 @@ for line in lines[: min(num_samples, len(lines) - 1)]:
     target_text.append('<end>')
     input_text = word_tokenize(input_text)
 
-    input_texts.append(input_text)
-    target_texts.append(target_text)
-    for char in input_text:
-        if char not in input_characters:
-            input_characters.add(char)
-    for char in target_text:
-        if char not in target_characters:
-            target_characters.add(char)
+    if len(input_text) <= 100:
+        input_texts.append(input_text)
+        target_texts.append(target_text)
+        for char in input_text:
+            if char not in input_characters:
+                input_characters.add(char)
+        for char in target_text:
+            if char not in target_characters:
+                target_characters.add(char)
+        t += 1
+        if t >= min(num_samples, len(lines) - 1):
+            break
 
 # validation data
 for line in val_lines[: min(num_samples, len(val_lines) - 1)]:
